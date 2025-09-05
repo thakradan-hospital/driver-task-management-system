@@ -1,0 +1,21 @@
+{
+  "name": "ระบบจัดการงานคนขับรถโรงพยาบาลท่ากระดาน",
+  "short_name": "TKD Driver",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "driver2.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "driver3.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
