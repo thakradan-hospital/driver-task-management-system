@@ -3634,48 +3634,64 @@
             }, duration);
         }
 
-        // Update task status with timestamps
+        // อัปเดตสถานะงานพร้อมแจ้ง LINE
         async function updateTaskStatus(taskId, newStatus) {
             try {
-                const updateData = {
-                    status: newStatus,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-                
-                // Add timestamps for status changes
-                if (newStatus === 'in-progress') {
-                    updateData.startedAt = firebase.firestore.FieldValue.serverTimestamp();
-                } else if (newStatus === 'completed') {
-                    updateData.completedAt = firebase.firestore.FieldValue.serverTimestamp();
-                }
-                
-                await db.collection('tasks').doc(taskId).update(updateData);
-                
-                // Success notification with status-specific messages
-                const statusMessages = {
-                    'in-progress': {
-                        title: '🚗 เริ่มงานแล้ว',
-                        message: 'คุณได้เริ่มทำงานเรียบร้อยแล้ว'
-                    },
-                    'completed': {
-                        title: '🎉 งานเสร็จสิ้น',
-                        message: 'คุณได้ทำงานเสร็จสิ้นเรียบร้อยแล้ว'
-                    }
-                };
-                
-                const message = statusMessages[newStatus] || {
-                    title: '✅ อัปเดตสำเร็จ!',
-                    message: 'สถานะงานได้รับการอัปเดตเรียบร้อยแล้ว'
-                };
-                
-                showNotification('success', message.title, message.message);
-                loadDriverDashboard();
-                
-            } catch (error) {
-                console.error('Error updating task status:', error);
-                showNotification('error', '❌ เกิดข้อผิดพลาด!', 'ไม่สามารถอัปเดตสถานะงานได้ กรุณาลองใหม่อีกครั้ง');
-            }
+            const updateData = {
+                status: newStatus,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+        // เพิ่มเวลาสำหรับการเปลี่ยนสถานะ
+        if (newStatus === 'in-progress') {
+            updateData.startedAt = firebase.firestore.FieldValue.serverTimestamp();
+        } else if (newStatus === 'completed') {
+            updateData.completedAt = firebase.firestore.FieldValue.serverTimestamp();
         }
+
+        await db.collection('tasks').doc(taskId).update(updateData);
+
+        // ดึงข้อมูลงานจาก Firestore เพื่อนำมาแจ้ง LINE
+        const taskDoc = await db.collection('tasks').doc(taskId).get();
+        const task = taskDoc.data();
+        const dateTime = getCurrentDateTime();
+
+        // เตรียมข้อความแจ้งเตือน
+        let lineMessage = '';
+        if (newStatus === 'in-progress') {
+            lineMessage = `🚗 คนขับเริ่มงานแล้ว!\n📌 งาน: ${task.taskName}\n📍 จุดหมาย: ${task.location}\n👨‍💼 คนขับ: ${task.driverName}\n⏰ เวลา: ${dateTime}`;
+        } else if (newStatus === 'completed') {
+            lineMessage = `✅ งานเสร็จสิ้น!\n📌 งาน: ${task.taskName}\n📍 จุดหมาย: ${task.location}\n👨‍💼 คนขับ: ${task.driverName}\n⏰ เวลา: ${dateTime}`;
+        }
+
+        // ส่งแจ้ง LINE ถ้ามีข้อความ
+        if (lineMessage) await sendLineNotify(lineMessage);
+
+        // แจ้งเตือนในระบบ
+        const statusMessages = {
+            'in-progress': {
+                title: '🚗 เริ่มงานแล้ว',
+                message: 'คุณได้เริ่มทำงานเรียบร้อยแล้ว'
+            },
+            'completed': {
+                title: '🎉 งานเสร็จสิ้น',
+                message: 'คุณได้ทำงานเสร็จสิ้นเรียบร้อยแล้ว'
+            }
+        };
+
+        const message = statusMessages[newStatus] || {
+            title: '✅ อัปเดตสำเร็จ!',
+            message: 'สถานะงานได้รับการอัปเดตเรียบร้อยแล้ว'
+        };
+
+        showNotification('success', message.title, message.message);
+        loadDriverDashboard();
+
+    } catch (error) {
+        console.error('Error updating task status:', error);
+        showNotification('error', '❌ เกิดข้อผิดพลาด!', 'ไม่สามารถอัปเดตสถานะงานได้ กรุณาลองใหม่อีกครั้ง');
+    }
+}
 
         // Show beautiful delete confirmation popup
         function showDeleteConfirmation(taskId, taskName, taskLocation, driverName) {
@@ -4808,6 +4824,35 @@
         document.getElementById('searchTasks').addEventListener('input', filterTasks);
         document.getElementById('filterDriver').addEventListener('change', filterTasks);
         document.getElementById('filterStatus').addEventListener('change', filterTasks);
+
+        // ฟังก์ชันส่ง LINE Notify
+        async function sendLineNotify(message) {
+            const url = "https://morpromt2f.moph.go.th/api/notify/send";
+            const payload = { messages: [{ type: "text", text: message }] };
+
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    "client-key": "5494493242fd5ff380af3b51f7aa7a47fc075171", // 🔑 ใส่ค่า key ของคุณ
+                    "secret-key": "4NXFT5AVL6UF3YRDVEFIIV2GKKCQ"
+                    },
+                body: JSON.stringify(payload)
+            });
+                console.log("✅ LINE Notify Sent:", await response.text());
+            } catch (err) {
+                console.error("❌ LINE Notify Error:", err);
+            }
+        }
+
+        // ฟังก์ชันดึงวันที่/เวลาแบบไทย
+        function getCurrentDateTime() {
+            const now = new Date();
+            const date = now.toLocaleDateString('th-TH');
+            const time = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        return `${date} ${time}`;
+        }
     </script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97a3f27af401893b',t:'MTc1NzA1NjY0OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
