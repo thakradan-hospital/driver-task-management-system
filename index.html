@@ -2063,45 +2063,70 @@
             }
         }
 
-        // Logout functionality - direct logout without confirmation
-        async function logout() {
-            // Stop location tracking and update driver status to offline (only for drivers)
-            if (currentUser && currentUser.role === 'driver') {
-                try {
-                    // หยุดติดตามตำแหน่ง
-                    stopLocationTracking();
+        // ฟังก์ชันดึงตำแหน่งล่าสุดของคนขับ
+async function getDriverLocationText(username) {
+    try {
+        const doc = await db.collection('driver_locations').doc(username).get();
+        if (!doc.exists) return "ไม่ทราบตำแหน่ง";
 
-                    // อัปเดตสถานะคนขับเป็น offline
-                    await db.collection('driver_locations').doc(currentUser.username).update({
-                        status: 'offline',
-                        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    // เตรียมข้อความแจ้ง LINE
-                    const dateTime = getCurrentDateTime();
-                    const driverName = currentUser.fullName || currentUser.username;
-                    const message = `🚪 คนขับรถออกจากระบบแล้ว\n👨‍💼 คนขับ: ${driverName}\n⏰ เวลา: ${dateTime}`;
-                    await sendLineNotify(message);
+        const data = doc.data();
 
-                    console.log('Driver logged out, status offline, and LINE notified');
-                } catch (error) {
-                    console.error('Error updating offline status:', error);
-                }
-            }
-
-            // Clear session
-            clearUserSession();
-            currentUser = null;
-            currentSection = 'dashboard';
-
-            document.getElementById('loginScreen').classList.remove('hidden');
-            document.getElementById('adminDashboard').classList.add('hidden');
-            document.getElementById('driverDashboard').classList.add('hidden');
-            document.getElementById('loginForm').reset();
-            document.getElementById('loginError').classList.add('hidden');
-
-            // Show logout success notification
-            showNotification('success', '👋 ออกจากระบบแล้ว', 'คุณได้ออกจากระบบเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ', 3000);
+        // ถ้ามี address ให้ใช้เลย
+        if (data.address) {
+            return data.address;
         }
+
+        // ถ้าไม่มี address ใช้ lat/lng
+        if (data.latitude && data.longitude) {
+            return `(${data.latitude}, ${data.longitude})`;
+        }
+
+        return "ไม่ทราบตำแหน่ง";
+    } catch (error) {
+        console.error("Error fetching driver location:", error);
+        return "ไม่ทราบตำแหน่ง";
+    }
+}
+
+
+// Logout functionality - direct logout without confirmation
+async function logout() {
+    if (currentUser && currentUser.role === 'driver') {
+        try {
+            stopLocationTracking();
+
+            // ✅ ดึงตำแหน่งล่าสุดก่อนอัปเดตเป็น offline
+            const locationText = await getDriverLocationText(currentUser.username);
+
+            await db.collection('driver_locations').doc(currentUser.username).update({
+                status: 'offline',
+                lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            const dateTime = getCurrentDateTime();
+            const driverName = currentUser.fullName || currentUser.name || currentUser.username;
+
+            const message = `🚪 คนขับรถออกจากระบบแล้ว\n👨‍💼 คนขับ: ${driverName}\n📍 ตำแหน่งล่าสุด: ${locationText}\n⏰ เวลา: ${dateTime}`;
+            await sendLineNotify(message);
+
+            console.log('✅ Logout: Driver status offline and LINE notified');
+        } catch (error) {
+            console.error('❌ Error during logout:', error);
+        }
+    }
+
+    clearUserSession();
+    currentUser = null;
+    currentSection = 'dashboard';
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('adminDashboard').classList.add('hidden');
+    document.getElementById('driverDashboard').classList.add('hidden');
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginError').classList.add('hidden');
+    showNotification('success', '👋 ออกจากระบบแล้ว', 'คุณได้ออกจากระบบเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ', 3000);
+}
+
+
 
         // Toggle mobile menu
         function toggleMobileMenu() {
@@ -4414,84 +4439,92 @@
 
 
         // Location tracking for drivers only (not admin)
-        function startLocationTracking() {
-            // Only track location if user is a driver, not admin
-            if (currentUser && currentUser.role === 'driver' && navigator.geolocation) {
-                console.log('Starting location tracking for driver:', currentUser.name);
+// Location tracking for drivers only (not admin)
+function startLocationTracking() {
+    // Only track location if user is a driver
+    if (currentUser && currentUser.role === 'driver' && navigator.geolocation) {
+        console.log('Starting location tracking for driver:', currentUser.name);
 
-                // Request location permission and start tracking
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        console.log('Location permission granted, starting continuous tracking');
+        navigator.geolocation.getCurrentPosition(
+            () => {
+                console.log('Location permission granted, starting continuous tracking');
 
-                        // Start continuous location tracking
-                        const watchId = navigator.geolocation.watchPosition(
-                            async (position) => {
-                                const { latitude, longitude } = position.coords;
+                const watchId = navigator.geolocation.watchPosition(
+                    async (position) => {
+                        const { latitude, longitude } = position.coords;
 
-                                try {
-                                    // Get address from coordinates (reverse geocoding)
-                                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=th`);
-                                    const data = await response.json();
-                                    const address = data.display_name || 'ไม่สามารถระบุที่อยู่ได้';
+                        // ✅ จับ snapshot ของผู้ใช้ไว้ในตัวแปรโลคัล (กัน currentUser เปลี่ยนกลางคัน)
+                        const user = currentUser; 
+                        if (!user || user.role !== 'driver' || !user.username) {
+                            console.warn('Skipping location update: user logged out or invalid');
+                            return;
+                        }
+                        const username = user.username;
+                        const displayName = user.name || user.fullName || username;
 
-                                    // Update driver location in Firestore
-                                    await db.collection('driver_locations').doc(currentUser.username).set({
-                                        name: currentUser.name,
-                                        latitude: latitude,
-                                        longitude: longitude,
-                                        address: address,
-                                        lastUpdate: firebase.firestore.FieldValue.serverTimestamp(),
-                                        status: 'online'
-                                    });
+                        try {
+                            // Reverse geocoding
+                            const response = await fetch(
+                                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=th`
+                            );
+                            const data = await response.json();
+                            const address = data.display_name || 'ไม่สามารถระบุที่อยู่ได้';
 
+                            // ✅ ใช้ username/displayName ที่จับไว้ ไม่อ้าง currentUser ตรงๆ
+                            await db.collection('driver_locations').doc(username).set({
+                                name: displayName,
+                                latitude: latitude,
+                                longitude: longitude,
+                                address: address,
+                                lastUpdate: firebase.firestore.FieldValue.serverTimestamp(),
+                                status: 'online'
+                            }, { merge: true });
 
-
-                                    console.log('Location updated:', { latitude, longitude, address });
-
-                                } catch (error) {
-                                    console.error('Error updating location:', error);
-                                }
-                            },
-                            (error) => {
-                                console.error('Geolocation error:', error);
-                            },
-                            {
-                                enableHighAccuracy: true,
-                                timeout: 15000,
-                                maximumAge: 30000
-                            }
-                        );
-
-                        // Store watch ID for cleanup
-                        window.locationWatchId = watchId;
+                            console.log('Location updated:', { latitude, longitude, address });
+                        } catch (error) {
+                            console.error('Error updating location:', error);
+                        }
                     },
                     (error) => {
-                        console.error('Initial location request failed:', error);
+                        console.error('Geolocation error:', error);
                     },
                     {
                         enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 60000
+                        timeout: 15000,
+                        maximumAge: 30000
                     }
                 );
-            } else if (currentUser && currentUser.role === 'admin') {
-                console.log('Admin user - location tracking is disabled for security and privacy');
-                // Admin users do not need location tracking
-                return;
-            } else {
-                console.log('Location tracking not available or user not logged in');
-            }
-        }
 
-        // Stop location tracking (for cleanup)
-        function stopLocationTracking() {
-            if (window.locationWatchId) {
-                navigator.geolocation.clearWatch(window.locationWatchId);
-                window.locationWatchId = null;
-                console.log('Location tracking stopped');
+                // Store watch ID for cleanup
+                window.locationWatchId = watchId;
+            },
+            (error) => {
+                console.error('Initial location request failed:', error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
             }
-        }
+        );
+    } else if (currentUser && currentUser.role === 'admin') {
+        console.log('Admin user - location tracking is disabled for security and privacy');
+        return;
+    } else {
+        console.log('Location tracking not available or user not logged in');
+    }
+}
+
+// Stop location tracking (for cleanup)
+function stopLocationTracking() {
+    if (window.locationWatchId) {
+        navigator.geolocation.clearWatch(window.locationWatchId);
+        window.locationWatchId = null;
+        console.log('Location tracking stopped');
+    }
+}
+
+
 
         // Check for existing session on page load
         function checkExistingSession() {
