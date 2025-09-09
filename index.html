@@ -2064,45 +2064,57 @@
         }
 
         // Logout functionality - direct logout without confirmation
-        async function logout() {
-            // Stop location tracking and update driver status to offline (only for drivers)
-            if (currentUser && currentUser.role === 'driver') {
-                try {
-                    // หยุดติดตามตำแหน่ง
-                    stopLocationTracking();
+async function logout() {
+    // Stop location tracking and update driver status to offline (only for drivers)
+    if (currentUser && currentUser.role === 'driver') {
+        try {
+            // หยุดติดตามตำแหน่ง
+            stopLocationTracking();
 
-                    // อัปเดตสถานะคนขับเป็น offline
-                    await db.collection('driver_locations').doc(currentUser.username).update({
-                        status: 'offline',
-                        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    // เตรียมข้อความแจ้ง LINE
-                    const dateTime = getCurrentDateTime();
-                    const driverName = currentUser.fullName || currentUser.username;
-                    const message = `🚪 คนขับรถออกจากระบบแล้ว\n👨‍💼 คนขับ: ${driverName}\n⏰ เวลา: ${dateTime}`;
-                    await sendLineNotify(message);
+            // ดึงข้อมูลตำแหน่งล่าสุดจาก Firestore
+            const driverDoc = await db.collection('driver_locations').doc(currentUser.username).get();
+            const locationData = driverDoc.exists ? driverDoc.data() : null;
 
-                    console.log('Driver logged out, status offline, and LINE notified');
-                } catch (error) {
-                    console.error('Error updating offline status:', error);
-                }
-            }
+            // เตรียมข้อความตำแหน่ง
+            const locationText = locationData?.locationName
+                ? locationData.locationName
+                : locationData?.coords
+                    ? `(${locationData.coords.latitude}, ${locationData.coords.longitude})`
+                    : "ไม่ทราบตำแหน่ง";
 
-            // Clear session
-            clearUserSession();
-            currentUser = null;
-            currentSection = 'dashboard';
+            // อัปเดตสถานะคนขับเป็น offline
+            await db.collection('driver_locations').doc(currentUser.username).update({
+                status: 'offline',
+                lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+            });
 
-            document.getElementById('loginScreen').classList.remove('hidden');
-            document.getElementById('adminDashboard').classList.add('hidden');
-            document.getElementById('driverDashboard').classList.add('hidden');
-            document.getElementById('loginForm').reset();
-            document.getElementById('loginError').classList.add('hidden');
+            // เตรียมข้อความแจ้ง LINE
+            const dateTime = getCurrentDateTime();
+            const driverName = currentUser.fullName || currentUser.username;
+            const message = `🚪 คนขับรถออกจากระบบแล้ว\n👨‍💼 คนขับ: ${driverName}\n📍 ตำแหน่ง: ${locationText}\n⏰ เวลา: ${dateTime}`;
 
-            // Show logout success notification
-            showNotification('success', '👋 ออกจากระบบแล้ว', 'คุณได้ออกจากระบบเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ', 3000);
+            await sendLineNotify(message);
+
+            console.log('Driver logged out, status offline, and LINE notified');
+        } catch (error) {
+            console.error('Error updating offline status or sending LINE:', error);
         }
+    }
 
+    // Clear session
+    clearUserSession();
+    currentUser = null;
+    currentSection = 'dashboard';
+
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('adminDashboard').classList.add('hidden');
+    document.getElementById('driverDashboard').classList.add('hidden');
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginError').classList.add('hidden');
+
+    // Show logout success notification
+    showNotification('success', '👋 ออกจากระบบแล้ว', 'คุณได้ออกจากระบบเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ', 3000);
+}
         // Toggle mobile menu
         function toggleMobileMenu() {
             const mobileMenu = document.getElementById('mobileMenu');
@@ -5250,3 +5262,4 @@
 </body>
 
 </html>
+
