@@ -1,0 +1,221 @@
+
+        * {
+            font-family: 'Prompt', sans-serif;
+        }
+
+        .map-container {
+            height: 400px;
+            width: 100%;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .map-container {
+                height: 300px;
+            }
+
+            /* Mobile Navigation */
+            .mobile-nav-toggle {
+                display: block;
+            }
+
+            /* Mobile Cards */
+            .mobile-card {
+                margin: 0.5rem;
+                padding: 1rem;
+            }
+
+            /* Mobile Stats Grid */
+            .mobile-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+
+            /* Mobile Task Cards */
+            .mobile-task-card {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            /* Mobile Form */
+            .mobile-form {
+                padding: 1rem;
+            }
+
+            /* Mobile Table */
+            .mobile-table {
+                font-size: 0.875rem;
+            }
+
+            .mobile-table td {
+                padding: 0.5rem;
+            }
+
+            /* Hide desktop elements on mobile */
+            .desktop-only {
+                display: none !important;
+            }
+
+            /* Mobile-specific spacing */
+            .mobile-spacing {
+                padding: 0.5rem;
+            }
+        }
+
+        @media (max-width: 640px) {
+
+            /* Extra small screens */
+            .mobile-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .mobile-text-sm {
+                font-size: 0.75rem;
+            }
+
+            .mobile-p-2 {
+                padding: 0.5rem;
+            }
+        }
+
+        /* Tablet Responsive */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .tablet-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Login Animation Styles */
+        @keyframes blob {
+            0% {
+                transform: translate(0px, 0px) scale(1);
+            }
+
+            33% {
+                transform: translate(30px, -50px) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-20px, 20px) scale(0.9);
+            }
+
+            100% {
+                transform: translate(0px, 0px) scale(1);
+            }
+        }
+
+        .animate-blob {
+            animation: blob 7s infinite;
+        }
+
+        .animation-delay-2000 {
+            animation-delay: 2s;
+        }
+
+        .animation-delay-4000 {
+            animation-delay: 4s;
+        }
+
+        /* Glass morphism effect */
+        .backdrop-blur-lg {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .backdrop-blur-sm {
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        /* Input focus effects */
+        .focus-within\:scale-105:focus-within {
+            transform: scale(1.05);
+        }
+
+        /* Hover animations */
+        .hover\:scale-105:hover {
+            transform: scale(1.05);
+        }
+
+        /* Floating animation for logo */
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Progress bar animation for notifications */
+        @keyframes progress {
+            0% {
+                width: 100%;
+            }
+
+            100% {
+                width: 0%;
+            }
+        }
+
+        .animate-progress {
+            animation: progress linear;
+        }
+
+        /* Notification slide animations */
+        .notification-enter {
+            animation: slideInRight 0.5s ease-out;
+        }
+
+        .notification-exit {
+            animation: slideOutRight 0.5s ease-in;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* Pulse animation for notification icons */
+        @keyframes pulse-soft {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .animate-pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+    
